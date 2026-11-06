@@ -59,4 +59,4 @@ if __name__ == '__main__':
     threading.Thread(target=run_flask, daemon=True).start()
     
     print("Bot de Telegram y API Web iniciados...")
-    bot.polling()
+    # bot.polling()
