@@ -1,6 +1,7 @@
 import os
 import time
-from flask import Flask, jsonify
+import json
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
 
@@ -13,6 +14,28 @@ datos_actuales = {
     "timestamp": datetime.now().isoformat()
 }
 historial_precios = []
+
+# --- AÑADIDO: CARGAR HISTORIAL DESDE JSON ---
+def cargar_historico():
+    if os.path.exists('datos_historicos.json'):
+        try:
+            with open('datos_historicos.json', 'r', encoding='utf-8') as f:
+                datos = json.load(f)
+                for item in datos:
+                    registro = {
+                        "venta": item['precio'],
+                        "recompra": item['precio'] * 0.985,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    historial_precios.append(registro)
+                if historial_precios:
+                    datos_actuales.update(historial_precios[-1])
+                print(f"✅ Historial cargado: {len(historial_precios)} datos.")
+        except Exception as e:
+            print(f"Error cargando historial: {e}")
+
+cargar_historico()
+# --------------------------------------------
 
 @app.route('/')
 def home():
@@ -28,11 +51,9 @@ def get_datos():
         "historial": historial_precios
     })
 
-# ESTE ES EL ENDPOINT QUE USARÁ TU BOT REAL PARA ENVIAR LOS DATOS
 @app.route('/api/actualizar', methods=['POST'])
 def actualizar():
     global datos_actuales, historial_precios
-    from flask import request
     data = request.json
     
     if data and 'venta' in data and 'recompra' in data:
@@ -42,7 +63,7 @@ def actualizar():
             "timestamp": datetime.now().isoformat()
         }
         historial_precios.append(datos_actuales)
-        if len(historial_precios) > 100:
+        if len(historial_precios) > 2000:
             historial_precios.pop(0)
         return jsonify({"status": "ok"}), 200
     
