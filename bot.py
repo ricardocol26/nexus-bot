@@ -3,7 +3,7 @@ import time
 import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app) 
@@ -15,27 +15,37 @@ datos_actuales = {
 }
 historial_precios = []
 
-# --- AÑADIDO: CARGAR HISTORIAL DESDE JSON ---
-def cargar_historico():
-    if os.path.exists('datos_historicos.json'):
-        try:
-            with open('datos_historicos.json', 'r', encoding='utf-8') as f:
-                datos = json.load(f)
-                for item in datos:
-                    registro = {
-                        "venta": item['precio'],
-                        "recompra": item['precio'] * 0.985,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    historial_precios.append(registro)
-                if historial_precios:
-                    datos_actuales.update(historial_precios[-1])
-                print(f"✅ Historial cargado: {len(historial_precios)} datos.")
-        except Exception as e:
-            print(f"Error cargando historial: {e}")
+# --- CARGAR HISTORIAL DESDE JSON (CON FECHAS DEL PASADO) ---
+def cargar_historial():
+    archivo = 'datos_historicos.json'
+    if not os.path.exists(archivo):
+        print("⚠️ No se encontró datos_historicos.json.")
+        return
+    
+    try:
+        with open(archivo, 'r', encoding='utf-8') as f:
+            datos = json.load(f)
+            
+            # Calculamos una fecha base de hace 30 días
+            fecha_base = datetime.now() - timedelta(days=30)
+            
+            for i, item in enumerate(datos):
+                # Cada dato tiene una fecha distinta (1 por hora aprox)
+                fecha_registro = fecha_base + timedelta(hours=i)
+                
+                registro = {
+                    "venta": float(item['precio']),
+                    "recompra": float(item['precio']) * 0.985,
+                    "timestamp": fecha_registro.isoformat()
+                }
+                historial_precios.append(registro)
+            
+            print(f"✅ Historial cargado: {len(historial_precios)} registros desde capturas.")
+    except Exception as e:
+        print(f"⚠️ Error cargando historial: {e}")
 
-cargar_historico()
-# --------------------------------------------
+cargar_historial()
+# -----------------------------------------------------------
 
 @app.route('/')
 def home():
@@ -43,7 +53,7 @@ def home():
 
 @app.route('/api/datos')
 def get_datos():
-    if datos_actuales["venta"] == 0.0:
+    if datos_actuales["venta"] == 0.0 and not historial_precios:
         return jsonify({"error": "El bot aún no ha recibido precios"}), 202
     
     return jsonify({
@@ -63,8 +73,11 @@ def actualizar():
             "timestamp": datetime.now().isoformat()
         }
         historial_precios.append(datos_actuales)
+        
+        # Mantener un límite para no saturar la memoria (últimos 2000)
         if len(historial_precios) > 2000:
             historial_precios.pop(0)
+            
         return jsonify({"status": "ok"}), 200
     
     return jsonify({"error": "Datos inválidos"}), 400
