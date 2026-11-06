@@ -1,9 +1,8 @@
 import os
-import threading
+import time
 from flask import Flask, jsonify
 from flask_cors import CORS
 from datetime import datetime
-import time
 
 app = Flask(__name__)
 CORS(app) 
@@ -15,6 +14,10 @@ datos_actuales = {
 }
 historial_precios = []
 
+@app.route('/')
+def home():
+    return "Servidor NexusP2P funcionando"
+
 @app.route('/api/datos')
 def get_datos():
     if datos_actuales["venta"] == 0.0:
@@ -25,14 +28,26 @@ def get_datos():
         "historial": historial_precios
     })
 
+# ESTE ES EL ENDPOINT QUE USARÁ TU BOT REAL PARA ENVIAR LOS DATOS
+@app.route('/api/actualizar', methods=['POST'])
+def actualizar():
+    global datos_actuales, historial_precios
+    from flask import request
+    data = request.json
+    
+    if data and 'venta' in data and 'recompra' in data:
+        datos_actuales = {
+            "venta": float(data['venta']),
+            "recompra": float(data['recompra']),
+            "timestamp": datetime.now().isoformat()
+        }
+        historial_precios.append(datos_actuales)
+        if len(historial_precios) > 100:
+            historial_precios.pop(0)
+        return jsonify({"status": "ok"}), 200
+    
+    return jsonify({"error": "Datos inválidos"}), 400
+
 if __name__ == '__main__':
-    def run_flask():
-        port = int(os.environ.get('PORT', 5000))
-        app.run(host='0.0.0.0', port=port)
-    
-    threading.Thread(target=run_flask, daemon=True).start()
-    print("API Web iniciada y escuchando...")
-    
-    # Este bucle mantiene vivo el programa
-    while True:
-        time.sleep(10)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
