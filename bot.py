@@ -15,7 +15,7 @@ datos_actuales = {
 }
 historial_precios = []
 
-# --- CARGAR HISTORIAL DESDE JSON (CON FECHAS DEL PASADO) ---
+# --- CARGAR HISTORIAL DESDE JSON (DISTRIBUIDO EN 24 HORAS) ---
 def cargar_historial():
     archivo = 'datos_historicos.json'
     if not os.path.exists(archivo):
@@ -26,12 +26,14 @@ def cargar_historial():
         with open(archivo, 'r', encoding='utf-8') as f:
             datos = json.load(f)
             
-            # Calculamos una fecha base de hace 30 días
-            fecha_base = datetime.now() - timedelta(days=30)
+            # Calculamos una fecha base de hace 24 horas
+            fecha_base = datetime.now() - timedelta(hours=24)
+            total = len(datos)
             
             for i, item in enumerate(datos):
-                # Cada dato tiene una fecha distinta (1 por hora aprox)
-                fecha_registro = fecha_base + timedelta(hours=i)
+                # Distribuimos los datos en las últimas 24 horas
+                minutos_por_dato = (24 * 60) / max(total, 1)
+                fecha_registro = fecha_base + timedelta(minutes=i * minutos_por_dato)
                 
                 registro = {
                     "venta": float(item['precio']),
@@ -40,7 +42,7 @@ def cargar_historial():
                 }
                 historial_precios.append(registro)
             
-            print(f"✅ Historial cargado: {len(historial_precios)} registros desde capturas.")
+            print(f"✅ Historial cargado: {len(historial_precios)} registros distribuidos en 24h.")
     except Exception as e:
         print(f"⚠️ Error cargando historial: {e}")
 
