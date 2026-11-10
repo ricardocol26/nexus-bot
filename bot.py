@@ -4,10 +4,37 @@ import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
+from supabase import create_client, Client
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
+# --- CONEXIÓN A SUPABASE ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+# Inicializamos el cliente solo si las variables existen
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
+    print("⚠️ Faltan las variables de entorno de Supabase.")
+
+def guardar_en_supabase(venta, recompra):
+    if not supabase:
+        return
+    try:
+        data = {
+            "timestamp": datetime.now().isoformat(),
+            "venta": float(venta),
+            "recompra": float(recompra)
+        }
+        supabase.table("historial_precios").insert(data).execute()
+        print("💾 Guardado en Supabase")
+    except Exception as e:
+        print(f"⚠️ Error Supabase: {e}")
+
+# --- DATOS EN MEMORIA ---
 datos_actuales = {
     "venta": 0.0,
     "recompra": 0.0,
@@ -15,7 +42,7 @@ datos_actuales = {
 }
 historial_precios = []
 
-# --- CARGAR HISTORIAL DESDE JSON (DISTRIBUIDO EN 24 HORAS) ---
+# --- CARGAR HISTORIAL DESDE JSON LOCAL ---
 def cargar_historial():
     archivo = 'datos_historicos.json'
     if not os.path.exists(archivo):
@@ -26,12 +53,10 @@ def cargar_historial():
         with open(archivo, 'r', encoding='utf-8') as f:
             datos = json.load(f)
             
-            # Calculamos una fecha base de hace 24 horas
             fecha_base = datetime.now() - timedelta(hours=24)
             total = len(datos)
             
             for i, item in enumerate(datos):
-                # Distribuimos los datos en las últimas 24 horas
                 minutos_por_dato = (24 * 60) / max(total, 1)
                 fecha_registro = fecha_base + timedelta(minutes=i * minutos_por_dato)
                 
@@ -42,16 +67,16 @@ def cargar_historial():
                 }
                 historial_precios.append(registro)
             
-            print(f"✅ Historial cargado: {len(historial_precios)} registros distribuidos en 24h.")
+            print(f"✅ Historial cargado: {len(historial_precios)} registros.")
     except Exception as e:
         print(f"⚠️ Error cargando historial: {e}")
 
 cargar_historial()
-# -----------------------------------------------------------
 
+# --- RUTAS DE LA API ---
 @app.route('/')
 def home():
-    return "Servidor NexusP2P funcionando"
+    return "Servidor NexusP2P funcionando con Supabase"
 
 @app.route('/api/datos')
 def get_datos():
@@ -76,7 +101,9 @@ def actualizar():
         }
         historial_precios.append(datos_actuales)
         
-        # Mantener un límite para no saturar la memoria (últimos 2000)
+        # 🔥 AQUÍ GUARDAMOS EN SUPABAS
+        guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
+        
         if len(historial_precios) > 2000:
             historial_precios.pop(0)
             
