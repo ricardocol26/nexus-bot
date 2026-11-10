@@ -21,9 +21,7 @@ else:
     print("⚠️ Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY.", flush=True)
 
 def guardar_en_supabase(venta, recompra):
-    print("🔍 1. Intentando conectar con Supabase...", flush=True) 
     if not supabase:
-        print("⚠️ 2. El cliente de Supabase es None. Revisa las variables en Render.", flush=True) 
         return
     try:
         data = {
@@ -31,49 +29,18 @@ def guardar_en_supabase(venta, recompra):
             "venta": float(venta),
             "recompra": float(recompra)
         }
-        print(f"📦 3. Enviando datos: Venta={venta}, Recompra={recompra}", flush=True) 
         supabase.table("historial_precios").insert(data).execute()
         print("💾 4. ¡Guardado exitoso en Supabase!", flush=True) 
     except Exception as e:
         print(f"❌ 5. Error de Supabase: {e}", flush=True) 
 
-# --- DATOS EN MEMORIA ---
+# --- DATOS EN MEMORIA (Respaldo) ---
 datos_actuales = {
     "venta": 0.0,
     "recompra": 0.0,
     "timestamp": datetime.now().isoformat()
 }
 historial_precios = []
-
-# --- CARGAR HISTORIAL DESDE JSON LOCAL ---
-def cargar_historial():
-    archivo = 'datos_historicos.json'
-    if not os.path.exists(archivo):
-        print("⚠️ No se encontró datos_historicos.json.", flush=True)
-        return
-    
-    try:
-        with open(archivo, 'r', encoding='utf-8') as f:
-            datos = json.load(f)
-            fecha_base = datetime.now() - timedelta(hours=24)
-            total = len(datos)
-            
-            for i, item in enumerate(datos):
-                minutos_por_dato = (24 * 60) / max(total, 1)
-                fecha_registro = fecha_base + timedelta(minutes=i * minutos_por_dato)
-                
-                registro = {
-                    "venta": float(item['precio']),
-                    "recompra": float(item['precio']) * 0.985,
-                    "timestamp": fecha_registro.isoformat()
-                }
-                historial_precios.append(registro)
-            
-            print(f"✅ Historial cargado: {len(historial_precios)} registros.", flush=True)
-    except Exception as e:
-        print(f"⚠️ Error cargando historial: {e}", flush=True)
-
-cargar_historial()
 
 # --- RUTAS DE LA API ---
 @app.route('/')
@@ -82,6 +49,29 @@ def home():
 
 @app.route('/api/datos')
 def get_datos():
+    # 1. Intentamos leer desde Supabase
+    if supabase:
+        try:
+            # Traemos los últimos 1000 registros ordenados cronológicamente
+            response = supabase.table("historial_precios") \
+                .select("timestamp", "venta", "recompra") \
+                .order("timestamp", desc=False) \
+                .limit(1000) \
+                .execute()
+            
+            historial_db = response.data
+            
+            if historial_db and len(historial_db) > 0:
+                # El último registro de la lista es el precio actual
+                actual = historial_db[-1]
+                return jsonify({
+                    "precios_actuales": actual,
+                    "historial": historial_db
+                })
+        except Exception as e:
+            print(f"⚠️ Error leyendo de Supabase: {e}", flush=True)
+
+    # 2. Si Supabase falla o está vacío, usamos la memoria (Respaldo)
     if datos_actuales["venta"] == 0.0 and not historial_precios:
         return jsonify({"error": "El bot aún no ha recibido precios"}), 202
     
@@ -92,7 +82,6 @@ def get_datos():
 
 @app.route('/api/actualizar', methods=['POST'])
 def actualizar():
-    print("🚀 ¡Petición recibida en el servidor!", flush=True) # <-- NUEVO MENSAJE
     global datos_actuales, historial_precios
     data = request.json
     
@@ -104,6 +93,7 @@ def actualizar():
         }
         historial_precios.append(datos_actuales)
         
+        # Guardamos en Supabase
         guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
         
         if len(historial_precios) > 2000:
