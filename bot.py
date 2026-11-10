@@ -16,12 +16,15 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 # Inicializamos el cliente solo si las variables existen
 if SUPABASE_URL and SUPABASE_KEY:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Cliente de Supabase inicializado.")
 else:
     supabase = None
-    print("⚠️ Faltan las variables de entorno de Supabase.")
+    print("⚠️ Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY.")
 
 def guardar_en_supabase(venta, recompra):
+    print("🔍 1. Intentando conectar con Supabase...") 
     if not supabase:
+        print("⚠️ 2. El cliente de Supabase es None. Revisa las variables en Render.") 
         return
     try:
         data = {
@@ -29,10 +32,11 @@ def guardar_en_supabase(venta, recompra):
             "venta": float(venta),
             "recompra": float(recompra)
         }
+        print(f"📦 3. Enviando datos: Venta={venta}, Recompra={recompra}") 
         supabase.table("historial_precios").insert(data).execute()
-        print("💾 Guardado en Supabase")
+        print("💾 4. ¡Guardado exitoso en Supabase!") 
     except Exception as e:
-        print(f"⚠️ Error Supabase: {e}")
+        print(f"❌ 5. Error de Supabase: {e}") 
 
 # --- DATOS EN MEMORIA ---
 datos_actuales = {
@@ -101,7 +105,7 @@ def actualizar():
         }
         historial_precios.append(datos_actuales)
         
-        # 🔥 AQUÍ GUARDAMOS EN SUPABAS
+        # 🔥 AQUÍ GUARDAMOS EN SUPABASE
         guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
         
         if len(historial_precios) > 2000:
