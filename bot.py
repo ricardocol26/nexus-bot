@@ -13,18 +13,17 @@ CORS(app)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# Inicializamos el cliente solo si las variables existen
 if SUPABASE_URL and SUPABASE_KEY:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ Cliente de Supabase inicializado.")
+    print("✅ Cliente de Supabase inicializado.", flush=True)
 else:
     supabase = None
-    print("⚠️ Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY.")
+    print("⚠️ Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY.", flush=True)
 
 def guardar_en_supabase(venta, recompra):
-    print("🔍 1. Intentando conectar con Supabase...") 
+    print("🔍 1. Intentando conectar con Supabase...", flush=True) 
     if not supabase:
-        print("⚠️ 2. El cliente de Supabase es None. Revisa las variables en Render.") 
+        print("⚠️ 2. El cliente de Supabase es None. Revisa las variables en Render.", flush=True) 
         return
     try:
         data = {
@@ -32,11 +31,11 @@ def guardar_en_supabase(venta, recompra):
             "venta": float(venta),
             "recompra": float(recompra)
         }
-        print(f"📦 3. Enviando datos: Venta={venta}, Recompra={recompra}") 
+        print(f"📦 3. Enviando datos: Venta={venta}, Recompra={recompra}", flush=True) 
         supabase.table("historial_precios").insert(data).execute()
-        print("💾 4. ¡Guardado exitoso en Supabase!") 
+        print("💾 4. ¡Guardado exitoso en Supabase!", flush=True) 
     except Exception as e:
-        print(f"❌ 5. Error de Supabase: {e}") 
+        print(f"❌ 5. Error de Supabase: {e}", flush=True) 
 
 # --- DATOS EN MEMORIA ---
 datos_actuales = {
@@ -50,13 +49,12 @@ historial_precios = []
 def cargar_historial():
     archivo = 'datos_historicos.json'
     if not os.path.exists(archivo):
-        print("⚠️ No se encontró datos_historicos.json.")
+        print("⚠️ No se encontró datos_historicos.json.", flush=True)
         return
     
     try:
         with open(archivo, 'r', encoding='utf-8') as f:
             datos = json.load(f)
-            
             fecha_base = datetime.now() - timedelta(hours=24)
             total = len(datos)
             
@@ -71,9 +69,9 @@ def cargar_historial():
                 }
                 historial_precios.append(registro)
             
-            print(f"✅ Historial cargado: {len(historial_precios)} registros.")
+            print(f"✅ Historial cargado: {len(historial_precios)} registros.", flush=True)
     except Exception as e:
-        print(f"⚠️ Error cargando historial: {e}")
+        print(f"⚠️ Error cargando historial: {e}", flush=True)
 
 cargar_historial()
 
@@ -94,6 +92,7 @@ def get_datos():
 
 @app.route('/api/actualizar', methods=['POST'])
 def actualizar():
+    print("🚀 ¡Petición recibida en el servidor!", flush=True) # <-- NUEVO MENSAJE
     global datos_actuales, historial_precios
     data = request.json
     
@@ -105,7 +104,6 @@ def actualizar():
         }
         historial_precios.append(datos_actuales)
         
-        # 🔥 AQUÍ GUARDAMOS EN SUPABASE
         guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
         
         if len(historial_precios) > 2000:
