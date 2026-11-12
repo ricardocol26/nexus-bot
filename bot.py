@@ -3,7 +3,7 @@ import time
 import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 
 app = Flask(__name__)
@@ -25,7 +25,7 @@ def guardar_en_supabase(venta, recompra):
         return
     try:
         data = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "venta": float(venta),
             "recompra": float(recompra)
         }
@@ -38,7 +38,7 @@ def guardar_en_supabase(venta, recompra):
 datos_actuales = {
     "venta": 0.0,
     "recompra": 0.0,
-    "timestamp": datetime.now().isoformat()
+    "timestamp": datetime.now(timezone.utc).isoformat()
 }
 historial_precios = []
 
@@ -52,14 +52,16 @@ def get_datos():
     # 1. Intentamos leer desde Supabase
     if supabase:
         try:
-            # Calcular la fecha exacta de hace 24 horas
-            hace_24_horas = (datetime.now() - timedelta(hours=24)).isoformat()
+            # Calcular la fecha exacta de hace 24 horas en UTC
+            hace_24_horas = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
-            # Traemos SOLO los datos de las últimas 24h, ordenados cronológicamente
+            # Traemos los datos de las últimas 24h, ordenados cronológicamente
+            # IMPORTANTE: El .limit(10000) evita que Supabase corte los datos a 1000
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
                 .gte("timestamp", hace_24_horas) \
                 .order("timestamp", desc=False) \
+                .limit(10000) \
                 .execute()
             
             historial_db = response.data
@@ -92,7 +94,7 @@ def actualizar():
         datos_actuales = {
             "venta": float(data['venta']),
             "recompra": float(data['recompra']),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         historial_precios.append(datos_actuales)
         
