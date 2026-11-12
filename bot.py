@@ -52,17 +52,20 @@ def get_datos():
     # 1. Intentamos leer desde Supabase
     if supabase:
         try:
-            # Traemos los últimos 1000 registros ordenados cronológicamente
+            # Calcular la fecha exacta de hace 24 horas
+            hace_24_horas = (datetime.now() - timedelta(hours=24)).isoformat()
+
+            # Traemos SOLO los datos de las últimas 24h, ordenados cronológicamente
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
+                .gte("timestamp", hace_24_horas) \
                 .order("timestamp", desc=False) \
-                .limit(1000) \
                 .execute()
             
             historial_db = response.data
             
             if historial_db and len(historial_db) > 0:
-                # El último registro de la lista es el precio actual
+                # El último registro de la lista es el precio actual (el más reciente)
                 actual = historial_db[-1]
                 return jsonify({
                     "precios_actuales": actual,
