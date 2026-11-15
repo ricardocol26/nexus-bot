@@ -24,7 +24,7 @@ def guardar_en_supabase(venta, recompra, timestamp):
         return
     try:
         data = {
-            "timestamp": timestamp, # Usamos el timestamp que viene desde Thonny
+            "timestamp": timestamp,
             "venta": float(venta),
             "recompra": float(recompra)
         }
@@ -51,17 +51,21 @@ def get_datos():
     if supabase:
         try:
             hace_24_horas = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            
+            # FORZAMOS DESC=TRUE PARA TRAER LOS MÁS NUEVOS PRIMERO
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
                 .gte("timestamp", hace_24_horas) \
-                .order("timestamp", desc=False) \
+                .order("timestamp", desc=True) \
                 .limit(10000) \
                 .execute()
             
             historial_db = response.data
             
             if historial_db and len(historial_db) > 0:
-                historial_db.sort(key=lambda x: x['timestamp'])
+                # INVERTIMOS EL ARRAY PARA QUE EL GRÁFICO LO DIBUJE BIEN (IZQUIERDA A DERECHA)
+                historial_db.reverse()
+                
                 actual = historial_db[-1]
                 
                 global datos_actuales
@@ -88,7 +92,6 @@ def actualizar():
     data = request.json
     
     if data and 'venta' in data and 'recompra' in data:
-        # AQUI ESTA LA MAGIA: Usamos el timestamp de Thonny si viene, sino generamos uno
         timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
         
         datos_actuales = {
