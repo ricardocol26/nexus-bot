@@ -19,19 +19,19 @@ else:
     supabase = None
     print("⚠️ Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY.", flush=True)
 
-def guardar_en_supabase(venta, recompra):
+def guardar_en_supabase(venta, recompra, timestamp):
     if not supabase:
         return
     try:
         data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": timestamp, # Usamos el timestamp que viene desde Thonny
             "venta": float(venta),
             "recompra": float(recompra)
         }
         supabase.table("historial_precios").insert(data).execute()
-        print("💾 4. ¡Guardado exitoso en Supabase!", flush=True) 
+        print("💾 Guardado exitoso en Supabase", flush=True) 
     except Exception as e:
-        print(f"❌ 5. Error de Supabase: {e}", flush=True) 
+        print(f"❌ Error de Supabase: {e}", flush=True) 
 
 # --- DATOS EN MEMORIA (Respaldo) ---
 datos_actuales = {
@@ -48,13 +48,9 @@ def home():
 
 @app.route('/api/datos')
 def get_datos():
-    # 1. Intentamos leer desde Supabase
     if supabase:
         try:
-            # Calcular la fecha exacta de hace 24 horas en UTC
             hace_24_horas = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-
-            # Traemos los datos de las últimas 24h, ordenados cronológicamente
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
                 .gte("timestamp", hace_24_horas) \
@@ -65,13 +61,9 @@ def get_datos():
             historial_db = response.data
             
             if historial_db and len(historial_db) > 0:
-                # FORZAR EL ORDEN EN PYTHON (Por si Supabase falla en el ordenamiento)
                 historial_db.sort(key=lambda x: x['timestamp'])
-                
-                # El último registro ordenado es el precio actual REAL
                 actual = historial_db[-1]
                 
-                # Actualizamos la memoria global para que coincida
                 global datos_actuales
                 datos_actuales = actual
                 
@@ -82,7 +74,6 @@ def get_datos():
         except Exception as e:
             print(f"⚠️ Error leyendo de Supabase: {e}", flush=True)
 
-    # 2. Si Supabase falla o está vacío, usamos la memoria (Respaldo)
     if datos_actuales["venta"] == 0.0 and not historial_precios:
         return jsonify({"error": "El bot aún no ha recibido precios"}), 202
     
@@ -97,17 +88,18 @@ def actualizar():
     data = request.json
     
     if data and 'venta' in data and 'recompra' in data:
+        # AQUI ESTA LA MAGIA: Usamos el timestamp de Thonny si viene, sino generamos uno
+        timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
+        
         datos_actuales = {
             "venta": float(data['venta']),
             "recompra": float(data['recompra']),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": timestamp
         }
         historial_precios.append(datos_actuales)
         
-        # Guardamos en Supabase
-        guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
+        guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"], timestamp)
         
-        # Limitar el historial en memoria para no consumir RAM
         if len(historial_precios) > 2000:
             historial_precios.pop(0)
             
