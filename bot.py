@@ -1,6 +1,5 @@
 import os
 import time
-import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
@@ -56,7 +55,6 @@ def get_datos():
             hace_24_horas = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
             # Traemos los datos de las últimas 24h, ordenados cronológicamente
-            # IMPORTANTE: El .limit(10000) evita que Supabase corte los datos a 1000
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
                 .gte("timestamp", hace_24_horas) \
@@ -67,8 +65,16 @@ def get_datos():
             historial_db = response.data
             
             if historial_db and len(historial_db) > 0:
-                # El último registro de la lista es el precio actual (el más reciente)
+                # FORZAR EL ORDEN EN PYTHON (Por si Supabase falla en el ordenamiento)
+                historial_db.sort(key=lambda x: x['timestamp'])
+                
+                # El último registro ordenado es el precio actual REAL
                 actual = historial_db[-1]
+                
+                # Actualizamos la memoria global para que coincida
+                global datos_actuales
+                datos_actuales = actual
+                
                 return jsonify({
                     "precios_actuales": actual,
                     "historial": historial_db
@@ -101,6 +107,7 @@ def actualizar():
         # Guardamos en Supabase
         guardar_en_supabase(datos_actuales["venta"], datos_actuales["recompra"])
         
+        # Limitar el historial en memoria para no consumir RAM
         if len(historial_precios) > 2000:
             historial_precios.pop(0)
             
