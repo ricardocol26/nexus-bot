@@ -50,20 +50,21 @@ def home():
 def get_datos():
     if supabase:
         try:
-            hace_24_horas = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            # CAMBIO 1: Traemos 7 días de historial (antes eran 24 horas)
+            hace_7_dias = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
             
-            # FORZAMOS DESC=TRUE PARA TRAER LOS MÁS NUEVOS PRIMERO
+            # CAMBIO 2: Subimos el límite a 50,000 registros para que quepan los 7 días
             response = supabase.table("historial_precios") \
                 .select("timestamp", "venta", "recompra") \
-                .gte("timestamp", hace_24_horas) \
+                .gte("timestamp", hace_7_dias) \
                 .order("timestamp", desc=True) \
-                .limit(10000) \
+                .limit(50000) \
                 .execute()
             
             historial_db = response.data
             
             if historial_db and len(historial_db) > 0:
-                # INVERTIMOS EL ARRAY PARA QUE EL GRÁFICO LO DIBUJE BIEN (IZQUIERDA A DERECHA)
+                # Invertimos el array para que el gráfico lo dibuje de izquierda a derecha
                 historial_db.reverse()
                 
                 actual = historial_db[-1]
