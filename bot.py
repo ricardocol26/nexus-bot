@@ -52,7 +52,7 @@ def get_datos():
         try:
             hace_7_dias = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
             
-            # PAGINACIÓN: Supabase corta en 1000 filas. Hacemos un bucle.
+            # PAGINACIÓN: Supabase corta en 1000 filas. Traemos en bloques.
             todos_los_datos = []
             bloque = 1000
             inicio = 0
@@ -76,14 +76,23 @@ def get_datos():
                     
                 inicio += bloque
 
-            if todos_los_datos:
-                actual = todos_los_datos[-1]
+            # ORDENAR Y DEDUPLICAR (garantiza que el gráfico no reciba timestamps repetidos)
+            vistos = set()
+            datos_limpios = []
+            for d in sorted(todos_los_datos, key=lambda x: x['timestamp']):
+                ts = d['timestamp']
+                if ts not in vistos:
+                    vistos.add(ts)
+                    datos_limpios.append(d)
+
+            if datos_limpios:
+                actual = datos_limpios[-1]
                 global datos_actuales
                 datos_actuales = actual
                 
                 return jsonify({
                     "precios_actuales": actual,
-                    "historial": todos_los_datos
+                    "historial": datos_limpios
                 })
         except Exception as e:
             print(f"⚠️ Error leyendo de Supabase: {e}", flush=True)
