@@ -2,3 +2,4 @@ Flask
 Flask-Cors
 pyTelegramBotAPI
 supabase
+gunicorn
